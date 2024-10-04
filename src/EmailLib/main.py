@@ -162,3 +162,4 @@ def send_email(SMTP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, port, receiver_email, e
 send_email(SMTP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, port, EMAIL_ACCOUNT, "Тест отправки 1", "vrnviervne", "testSend.docx")
 #123
 #456#kadfbgki
+#new
