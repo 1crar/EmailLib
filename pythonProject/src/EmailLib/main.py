@@ -2,6 +2,7 @@ import imaplib
 import email
 import datetime
 import os.path
+import email.mime.application
 from email.header import decode_header
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -12,6 +13,7 @@ IMAP_SERVER = "imap.yandex.ru"
 EMAIL_ACCOUNT = "TestEmailLib@yandex.ru"
 APP_PASSWORD = "ehimznmjptswibcs"
 SMTP_SERVER = "smtp.yandex.ru"
+port = 465
 
 # путь для сохранения писем
 path = "C:/Users/Loug238/Desktop/EmailFolder"
@@ -118,10 +120,10 @@ def email_to_eml(email, path, email_name):
     f.close()
 
 
-def send_email(SMTP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, receiver_email, email_subject, email_body):
+def send_email(SMTP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, port, receiver_email, email_subject, email_body, attachment):
     try:
         # Подключение к серверу и вход в аккаунт
-        smtp = smtplib.SMTP_SSL(SMTP_SERVER, 465)
+        smtp = smtplib.SMTP_SSL(SMTP_SERVER, port)
         smtp.login(EMAIL_ACCOUNT, APP_PASSWORD)
 
         # Создание письма
@@ -131,8 +133,21 @@ def send_email(SMTP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, receiver_email, email_s
         msg["Subject"] = email_subject
         msg.attach(MIMEText(email_body, "plain"))
 
-        # Отравка сообщения
+        # Добавление файла в письмо
+        f = open(attachment, "rb")
+        att = email.mime.application.MIMEApplication(f.read())
+        f.close()
+        att.add_header("Content-Disposition", "attachment", filename=attachment)
+        msg.attach(att)
+
+
+        # Отправка сообщения
         smtp.send_message(msg)
+        print("Письмо отправлено")
+
+    except Exception as exc:
+        print(f"Не удалось отправить письмо: {exc}" )
+
 
     finally:
         smtp.quit()
@@ -142,6 +157,6 @@ def send_email(SMTP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, receiver_email, email_s
 
 
 #print_emails(receive_emails(IMAP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, start_date='01-Jan-2024', seen="UNSEEN"))
-#emails = receive_emails(IMAP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, start_date='01-Jan-2024', seen="SEEN")
+#emails = receive_emails(IMAP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, start_date='01-Jan-2024', seen="UNSEEN")
 #email_to_eml(email=emails[0], path=path, email_name="test")
-send_email(SMTP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, EMAIL_ACCOUNT, "Тест отправки 1", "vrnviervne")
+send_email(SMTP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, port, EMAIL_ACCOUNT, "Тест отправки 1", "vrnviervne", "testSend.docx")
