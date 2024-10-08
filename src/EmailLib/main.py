@@ -9,23 +9,40 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 # Параметры для подключения к серверу почты (Яндекс Почта)
-IMAP_SERVER = "imap.yandex.ru"
-EMAIL_ACCOUNT = "TestEmailLib@yandex.ru"
-APP_PASSWORD = "ehimznmjptswibcs"
-SMTP_SERVER = "smtp.yandex.ru"
+imap_server = "imap.yandex.ru"
+email_account = "TestEmailLib@yandex.ru"
+app_password = "ehimznmjptswibcs"
+smtp_server = "smtp.yandex.ru"
 port = 465
 
+hr = ["loug2388@gmail.com"]
+rec = ["rustik-a.a@mail.ru"]
 # путь для сохранения писем
 path = "C:/Users/Loug238/Desktop/EmailFolder"
 
-def receive_emails(IMAP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, seen="ALL", count=None, start_date=None, end_date=None, read=0, rev=False):
+def receive_emails(imap_server, email_account, app_password, seen="ALL", count=None, start_date=None, end_date=None, read=0, rev=False, delete_after_fetch=False, folder="INBOX"):
+    """
+    Функция выгрузки сообщений из почты
+    :param imap_server: сервер почты
+    :param email_account: аккаунт почты
+    :param app_password: пароль аккаунта почты
+    :param seen: критерий поиска писем ("ALL" - все, "UNSEEN" - непрочитанные, "SEEN" - прочитанные)
+    :param count: ограничение по количеству вывода сообщений
+    :param start_date: критерий поиска писем по дате (начальная дата) [DD.Mon.YYYY]
+    :param end_date: критерий поиска писем по дате (конечная дата) [DD.Mon.YYYY]
+    :param read: параметр чтения писем (0 - не читать письмо после выгрузки, 1 - читать письмо после выгрузки)
+    :param rev: параметр сортировки выгружаемых писем (False - от нового к старому, True - наоборот)
+    :param delete_after_fetch: параметр удаления писем из почты после выгрузки (False - отсутствие удаления, True - удаление)
+    :param folder: папка с письмами ("INBOX" - Входящие, "Sent" - Отправленные, "Drafts" - Черновики, "Spam" - Спам, "Trash" - Корзина, собственные папки на английском)
+    :return: список писем class 'bytes'
+    """
     try:
         # Подключение к серверу и вход в аккаунт
-        imap = imaplib.IMAP4_SSL(IMAP_SERVER)
-        imap.login(EMAIL_ACCOUNT, APP_PASSWORD)
+        imap = imaplib.IMAP4_SSL(imap_server)
+        imap.login(email_account, app_password)
 
         # Выбор папки "INBOX"
-        imap.select("INBOX")
+        imap.select(folder)
 
         # Определение критерия поиска
         criteria = []
@@ -40,7 +57,7 @@ def receive_emails(IMAP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, seen="ALL", count=N
 
         query = " ".join(criteria) if criteria else "ALL"
 
-        # Поиск всех писем по критериям
+        # Поиск писем по критериям
         status, data = imap.search(None, query)
 
         # Преобразование списка ID сообщений
@@ -63,6 +80,14 @@ def receive_emails(IMAP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, seen="ALL", count=N
             raw_msg = msg_data[0][1]
             emails.append(raw_msg)
 
+            # Отметка сообщений, которые нужно удалить
+            if delete_after_fetch:
+                imap.store(email_id, "+FLAGS", "\\Deleted")
+
+        # Удаление писем
+        if delete_after_fetch:
+            imap.expunge()
+
         # Сортировка писем
         emails.sort(reverse=rev) # False - от нового к старому, True - наоборот
 
@@ -75,12 +100,17 @@ def receive_emails(IMAP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, seen="ALL", count=N
 
 
 def print_emails(emails):
+    """
+    Функция вывода писем в консоль
+    :param emails: выгруженные письма
+    :return: выводит в консоль сервер, аккаунт, тему письма, дату получения, ID письма, Email отправителя, текст письма
+    """
     msgs = []
     for raw_email in emails:
         data = email.message_from_bytes(raw_email)
         msgs.append(data)
     # Вывод информации о сервере и аккаунте
-    print("Сервер:", IMAP_SERVER, "Аккаунт:", EMAIL_ACCOUNT)
+    print("Сервер:", imap_server, "Аккаунт:", email_account)
     print()
     for msg in msgs:
 
@@ -113,50 +143,148 @@ def print_emails(emails):
             print("Текст сообщения:", body)
 
 
-def email_to_eml(email, path, email_name):
-    email_name = os.path.join(path, email_name + ".eml")
-    f = open(email_name, "wb")
+def email_to_eml(email, path, file_name):
+    """
+    Функция вывода писем в создаваемый файл
+    :param email: письмо
+    :param path: путь к папке, в которой необходимо создать файл письма
+    :param file_name: название файла для сохранения письма
+    :return: создается файл с письмом
+    """
+    file_name = os.path.join(path, file_name + ".eml")
+    f = open(file_name, "wb")
     f.write(email)
     f.close()
 
 
-def send_email(SMTP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, port, receiver_email, email_subject, email_body, attachment):
+def send_email(smtp_server:str, email_account:str, app_password:str, port:int, receiver_email:str, receivers_email_copy=None, hidden_receivers=None, email_subject="", email_body="", attachment=None, msg_to_forward=None):
+    """
+    Функция отправки сообщения
+    :param smtp_server: сервер почты
+    :param email_account: аккаунт почты
+    :param app_password: пароль аккаунта почты
+    :param port: порт
+    :param receiver_email: получатель сообщения
+    :param receivers_email_copy: список получателей копии письма ["example1@ex.com", "ex2@ex.com", ...]
+    :param hidden_receivers: список скрытых получателей письма ["example1@ex.com", "ex2@ex.com", ...]
+    :param email_subject: тема письма
+    :param email_body: тело письма
+    :param attachment: вложение к письму
+    :param msg_to_forward: письмо для пересылки
+    :return: возвращает состояние отправки письма и ошибку, в случае ее возникновения
+    """
     try:
         # Подключение к серверу и вход в аккаунт
-        smtp = smtplib.SMTP_SSL(SMTP_SERVER, port)
-        smtp.login(EMAIL_ACCOUNT, APP_PASSWORD)
+        smtp = smtplib.SMTP_SSL(smtp_server, port)
+        smtp.login(email_account, app_password)
 
         # Создание письма
         msg = MIMEMultipart()
-        msg["From"] = EMAIL_ACCOUNT
+        msg["From"] = email_account
         msg["To"] = receiver_email
+
+        if receivers_email_copy:
+            msg["Cc"] = ", ".join(receivers_email_copy) # добавляет получателей копии при наличии
         msg["Subject"] = email_subject
+
+        # Пересылаемое письмо
+        if msg_to_forward:
+            for msgtf in msg_to_forward:
+                data = email.message_from_bytes(msgtf)
+
+                # Получение данных о пересылаемом сообщении
+                dsubject, encoding = decode_header(data["Subject"])[0]
+                if isinstance(dsubject, bytes):
+                    dsubject = dsubject.decode(encoding if encoding else "utf-8")
+                dfrom = data["Return-path"]
+                dto = data["To"]
+                ddate = data["Date"]
+
+                fbody = (f"\n\n--- Пересланное сообщение ---\n"
+                         f"Тема: {dsubject}\n"
+                         f"От кого: {dfrom}\n"
+                         f"Кому: {dto}\n"
+                         f"Дата отправки: {ddate}\n\n")
+
+                if data.is_multipart():
+                    for part in data.walk():
+                        if part.get_content_type() == "text/plain":
+                            fbody += part.get_payload(decode=True).decode()
+                            break
+                else:
+                    fbody += data.get_payload(decode=True).decode()
+                fbody += "\n--- Конец пересланного сообщения ---\n"
+                email_body += fbody
+
         msg.attach(MIMEText(email_body, "plain"))
 
         # Добавление файла в письмо
-        f = open(attachment, "rb")
-        att = email.mime.application.MIMEApplication(f.read())
-        f.close()
-        att.add_header("Content-Disposition", "attachment", filename=attachment)
-        msg.attach(att)
+        if attachment:
+            f = open(attachment, "rb")
+            att = email.mime.application.MIMEApplication(f.read())
+            f.close()
+            att.add_header("Content-Disposition", "attachment", filename=attachment)
+            msg.attach(att)
 
+        all_receiver_email = [receiver_email]
+        if receivers_email_copy:
+            all_receiver_email.extend(receivers_email_copy)
+        if hidden_receivers:
+            all_receiver_email.extend(hidden_receivers)
 
         # Отправка сообщения
-        smtp.send_message(msg)
+        smtp.send_message(msg, to_addrs=all_receiver_email)
         print("Письмо отправлено")
 
     except Exception as exc:
         print(f"Не удалось отправить письмо: {exc}" )
 
-
     finally:
         smtp.quit()
 
 
+def move_emails(imap_server, email_account, app_password, emails, selected_folder, delete_after_move=False):
+    try:
+        # Подключение к серверу и вход в аккаунт
+        imap = imaplib.IMAP4_SSL(imap_server)
+        imap.login(email_account, app_password)
+
+        # выбор исходной папки
+        imap.select('test')
+
+        for raw_email in emails:
+            # Получаем идентификатор письма
+            msg = email.message_from_bytes(raw_email)
+            email_id = msg["Message-ID"]
+            print(email_id)
+
+            # Поиск письма в исходной папке
+            # status, data = imap.search(None, '(HEADER Message-ID "%s")' % email_id)
+            status, data = imap.search(None, f'HEADER Message-ID "{email_id}')
+            print(status)
+            print(data)
+            if status == "OK":
+                email_ids = data[0].split()
+                if email_ids:
+                    # Перемещаем письмо в выбранную папку
+                    imap.copy(email_ids[0], selected_folder)
+
+                    # Удаляем письмо после переноса
+                    if delete_after_move:
+                        imap.store(email_ids[0], "+FLAGS", "\\Deleted")
+                        imap.expunge()
+
+    except Exception as exc:
+        print(f"Не удалось перенести письмо: {exc}" )
+
+    finally:
+        # Завершение сессии
+        imap.logout()
 
 
+emails = receive_emails(imap_server, email_account, app_password, folder="test", count=1)
+print_emails(emails)
+# email_to_eml(email=emails[0], path=path, file_name="test")
+# send_email(smtp_server, email_account, app_password, port, email_account, email_subject="тест", email_body="тело письма", msg_to_forward=emails)
+move_emails(imap_server, email_account, app_password, emails=emails, selected_folder="test2", delete_after_move=False)
 
-#print_emails(receive_emails(IMAP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, start_date='01-Jan-2024', seen="UNSEEN"))
-#emails = receive_emails(IMAP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, start_date='01-Jan-2024', seen="UNSEEN")
-#email_to_eml(email=emails[0], path=path, email_name="test")
-send_email(SMTP_SERVER, EMAIL_ACCOUNT, APP_PASSWORD, port, EMAIL_ACCOUNT, "Тест отправки 1", "vrnviervne", "testSend.docx")
